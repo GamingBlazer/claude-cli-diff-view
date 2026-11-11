@@ -1,0 +1,16 @@
+{
+  "name": "claude-cli-diff-view",
+  "description": "Claude CLI Diff View: side-by-side diffs in the Claude Code terminal.",
+  "owner": {
+    "name": "GamingBlazer",
+    "url": "https://github.com/GamingBlazer"
+  },
+  "plugins": [
+    {
+      "name": "diff-view",
+      "source": "./",
+      "description": "Side-by-side, word-highlighted diffs for every Edit and Write in the Claude Code terminal, folded to a 12-line preview you click to expand. On by default; no panel, no commands, no tokens.",
+      "category": "development"
+    }
+  ]
+}
