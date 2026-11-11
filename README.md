@@ -4,19 +4,7 @@
 
 Claude Code's terminal shows each edit as one long inline diff. Claude CLI Diff View turns it into a side-by-side view like the one in an editor: old code on the left, new code on the right, the changed words highlighted, and big edits folded so you never scroll past walls of code.
 
-```
-Edit  src/cart.ts
-Added 4 lines, removed 3 lines
- 1 // cart helpers                          │ 1 // cart helpers
- 2 export function total(price, qty) {      │ 2 export function total(price, quantity, taxRate = 0.18) {
- 3   return price * qty                     │ 3   const subtotal = price * quantity
-                                            │ 4   return subtotal * (1 + taxRate)
- 4 }                                        │ 5 }
-   ⋯ 14 unchanged lines
-20 const limit = 10                         │21 const limit = 20
-
-[ ▸ Show all 48 lines ]  36 more lines hidden · click to expand
-```
+![Claude CLI Diff View: a side-by-side diff in the Claude Code terminal, removed lines red and added lines green with the changed words highlighted, folded to a preview with a Show all button](assets/preview.png)
 
 ## Features
 
