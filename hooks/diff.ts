@@ -107,6 +107,92 @@ export const rowsFromPatch = (hunks: readonly Hunk[]): { rows: Row[]; added: num
   return { rows: clipped ? rows.slice(0, MAX_ROWS) : rows, added, removed, clipped }
 }
 
+/** Most screen lines one diff line wraps to; the last one ends in an ellipsis when cut. */
+const MAX_WRAP = 40
+
+/** The first `n` cells of segments, no padding. */
+const cut = (segs: Seg[], n: number): Seg[] => {
+  const out: Seg[] = []
+  let left = n
+  for (const s of segs) {
+    if (left <= 0) break
+    const chars = Array.from(s.t)
+    out.push({ ...s, t: chars.slice(0, left).join('') })
+    left -= chars.length
+  }
+
+  return out
+}
+
+/**
+ * Segments word-wrapped to lines of `width` cells, each padded with spaces. Breaks at spaces,
+ * splits words longer than a line, and drops the space a line breaks at. Word marks carry over.
+ */
+export const wrap = (segs: Seg[], width: number): Seg[][] => {
+  const w = Math.max(2, width)
+  const lines: Seg[][] = []
+  let line: Seg[] = []
+  let used = 0
+  const push = (t: string, hl?: true) => {
+    const last = line[line.length - 1]
+    if (last && !!last.hl === !!hl) last.t += t
+    else line.push(hl ? { t, hl } : { t })
+    used += Array.from(t).length
+  }
+  const breakLine = () => {
+    lines.push(line)
+    line = []
+    used = 0
+  }
+
+  // Words and runs of spaces; a word can span segments (a marked part next to an unmarked one).
+  const words: { space: boolean; n: number; parts: Seg[] }[] = []
+  for (const s of segs) {
+    for (const t of s.t.match(/\s+|\S+/gu) ?? []) {
+      const space = /^\s/.test(t)
+      const part: Seg = s.hl ? { t, hl: true } : { t }
+      const last = words[words.length - 1]
+      if (last && last.space === space) last.parts.push(part)
+      else words.push({ space, n: 0, parts: [part] })
+      words[words.length - 1]!.n += Array.from(t).length
+    }
+  }
+
+  for (const word of words) {
+    if (word.space) {
+      // A space that would end a line is where it breaks; a continuation line never starts with one.
+      if (used + word.n > w) {
+        if (used > 0) breakLine()
+      } else if (used > 0 || lines.length === 0) {
+        for (const p of word.parts) push(p.t, p.hl)
+      }
+      continue
+    }
+    if (used > 0 && used + word.n > w && word.n <= w) breakLine()
+    for (const p of word.parts) {
+      let chars = Array.from(p.t)
+      while (chars.length > 0) {
+        if (used === w) breakLine()
+        const room = w - used
+        push(chars.slice(0, room).join(''), p.hl)
+        chars = chars.slice(room)
+      }
+    }
+  }
+  if (line.length > 0 || lines.length === 0) lines.push(line)
+
+  if (lines.length > MAX_WRAP) {
+    lines.length = MAX_WRAP
+    lines[MAX_WRAP - 1] = [...cut(lines[MAX_WRAP - 1]!, w - 1), { t: '…' }]
+  }
+
+  return lines.map(l => {
+    const used = l.reduce((n, s) => n + Array.from(s.t).length, 0)
+
+    return used < w ? [...l, { t: ' '.repeat(w - used) }] : l
+  })
+}
+
 /** Segments cut to `width` cells (an ellipsis where cut) and padded with spaces. */
 export const fit = (segs: Seg[], width: number): Seg[] => {
   const out: Seg[] = []

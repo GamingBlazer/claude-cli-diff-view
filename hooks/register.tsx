@@ -2,12 +2,12 @@ import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
 import type { Row, Seg } from '../types'
-import { fit, rowsFromPatch } from './diff'
+import { rowsFromPatch, wrap } from './diff'
 import type { Hunk } from './diff'
 
 /** Terminal columns from which old and new are drawn side by side; inline below. */
 const SPLIT_FROM = 120
-/** Diff lines shown before "Show all"; a diff at most a few longer is shown whole. */
+/** Screen lines shown before "Show all"; a diff at most a few longer is shown whole. */
 const PREVIEW = 12
 const SLACK = 3
 
@@ -64,27 +64,34 @@ export const register: Register = on => {
       </Text>
     )
 
-    const body: any[] = []
+    // One entry per diff line: the screen lines it wraps to.
+    const body: any[][] = []
     if (split) {
       const sideW = Math.floor((width - 1) / 2)
       const textW = Math.max(4, sideW - digits - 1)
-      const cell = (r: LineRow | undefined, side: 'o' | 'n') =>
-        r
-          ? [<Text dimColor>{num(side === 'o' ? r.o : r.n)} </Text>, ...paint(fit(r.s, textW), r.k)]
-          : [<Text dimColor>{' '.repeat(digits)} </Text>, ...paint(fit([{ t: '' }], textW), 'blank')]
-      const line = (l: LineRow | undefined, r: LineRow | undefined) => (
-        <Text wrap="truncate-end">
-          {cell(l, 'o')}
-          <Text dimColor>│</Text>
-          {cell(r, 'n')}
-        </Text>
-      )
+      const blank = (kind: 'c' | 'd' | 'a' | 'blank') => paint([{ t: ' '.repeat(textW) }], kind)
+      const line = (l: LineRow | undefined, r: LineRow | undefined) => {
+        const left = l ? wrap(l.s, textW) : []
+        const right = r ? wrap(r.s, textW) : []
+        const cell = (row: LineRow | undefined, wrapped: Seg[][], side: 'o' | 'n', q: number) => [
+          <Text dimColor>{q === 0 && row ? num(side === 'o' ? row.o : row.n) : ' '.repeat(digits)} </Text>,
+          ...(q < wrapped.length ? paint(wrapped[q]!, row!.k) : blank(row ? row.k : 'blank')),
+        ]
+
+        return Array.from({ length: Math.max(1, left.length, right.length) }, (_, q) => (
+          <Text wrap="truncate-end">
+            {cell(l, left, 'o', q)}
+            <Text dimColor>│</Text>
+            {cell(r, right, 'n', q)}
+          </Text>
+        ))
+      }
 
       let i = 0
       while (i < rows.length) {
         const r = rows[i]!
         if (r.k === 'gap') {
-          body.push(gapLine(r.skipped))
+          body.push([gapLine(r.skipped)])
           i++
         } else if (r.k === 'c') {
           body.push(line(r, r))
@@ -101,27 +108,36 @@ export const register: Register = on => {
       const textW = Math.max(4, width - (digits * 2 + 4))
       for (const r of rows) {
         if (r.k === 'gap') {
-          body.push(gapLine(r.skipped))
+          body.push([gapLine(r.skipped)])
           continue
         }
         const bg = r.k === 'd' ? 'diffRemoved' : r.k === 'a' ? 'diffAdded' : undefined
+        const sign = r.k === 'd' ? '- ' : r.k === 'a' ? '+ ' : '  '
         body.push(
-          <Text wrap="truncate-end">
-            <Text dimColor>
-              {num(r.o)} {num(r.n)}{' '}
+          wrap(r.s, textW).map((segs, q) => (
+            <Text wrap="truncate-end">
+              <Text dimColor>{q === 0 ? `${num(r.o)} ${num(r.n)} ` : ' '.repeat(digits * 2 + 2)}</Text>
+              <Text backgroundColor={bg}>{q === 0 ? sign : '  '}</Text>
+              {paint(segs, r.k)}
             </Text>
-            <Text backgroundColor={bg}>{r.k === 'd' ? '- ' : r.k === 'a' ? '+ ' : '  '}</Text>
-            {paint(fit(r.s, textW), r.k)}
-          </Text>,
+          )),
         )
       }
     }
 
     const id = p.tool_use_id
     const isOpen = p.isExpanded === true || (await read($, expanded)).includes(id)
-    const foldable = body.length > PREVIEW + SLACK
-    const shown = foldable && !isOpen ? body.slice(0, PREVIEW) : body
-    const hidden = body.length - shown.length
+    // Fold by screen lines, so a few long wrapped lines also fold; never cut a diff line in half.
+    const height = body.reduce((n, b) => n + b.length, 0)
+    const foldable = height > PREVIEW + SLACK
+    let take = body.length
+    if (foldable && !isOpen) {
+      let used = 0
+      take = 0
+      while (take < body.length && (take === 0 || used + body[take]!.length <= PREVIEW)) used += body[take++]!.length
+    }
+    const shown = body.slice(0, take).flat()
+    const hidden = body.length - take
 
     return (
       <Box flexDirection="column" marginBottom={1}>

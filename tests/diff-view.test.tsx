@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { fit, rowsFromPatch } from '../hooks/diff'
+import { fit, rowsFromPatch, wrap } from '../hooks/diff'
 
 const PATCH = [
   {
@@ -31,6 +31,20 @@ const LONG = [
     lines: [
       ...Array.from({ length: 30 }, (_, i) => `-const v${i + 1} = ${i}`),
       ...Array.from({ length: 30 }, (_, i) => `+const v${i + 1} = ${i * 2}`),
+    ],
+  },
+]
+
+/** One long removed line replaced by a longer one: both must wrap, not cut. */
+const WIDE = [
+  {
+    oldStart: 35,
+    oldLines: 1,
+    newStart: 35,
+    newLines: 1,
+    lines: [
+      '-2. **Humanizer pass.** Apply the humanizer skill to the whole draft and ignore its formatting sections because spoken audio has no formatting at all.',
+      '+2. **Humanizer pass: mandatory, strictly, every script and every rewrite.** Load the humanizer skill with the Skill tool and run its full check on the whole draft before any report is written. Endmarker.',
     ],
   },
 ]
@@ -66,6 +80,35 @@ test('rows from a patch: pairs, word marks, numbers and a gap between hunks', as
   const last = rows[rows.length - 1]
   expect(last && last.k === 'a' ? last.n : 0).toBe(21)
   expect(fit([{ t: 'abcdef' }], 4).map(s => s.t).join('')).toBe('abc…')
+})
+
+test('wrap: breaks at spaces, splits long words, keeps word marks, pads every line', async () => {
+  const text = (l: { t: string }[]) => l.map(s => s.t).join('')
+  const lines = wrap([{ t: 'alpha beta ' }, { t: 'gamma', hl: true }, { t: ' delta' }], 11)
+  expect(lines.map(text)).toEqual(['alpha beta ', 'gamma delta'])
+  expect(lines[1]![0]).toEqual({ t: 'gamma', hl: true })
+  expect(wrap([{ t: 'abcdefghij' }], 4).map(text)).toEqual(['abcd', 'efgh', 'ij  '])
+  expect(wrap([{ t: '    indented code' }], 12).map(text)).toEqual(['    indented', 'code        '])
+  expect(wrap([{ t: 'aa ' }, { t: 'check', hl: true }, { t: '.' }], 8).map(text)).toEqual(['aa      ', 'check.  '])
+  expect(wrap([{ t: '' }], 3).map(text)).toEqual(['   '])
+  const huge = wrap([{ t: 'x'.repeat(1000) }], 10)
+  expect(huge.length).toBe(40)
+  expect(text(huge[39]!)).toBe('xxxxxxxxx…')
+})
+
+test('long lines wrap on both sides and inline instead of being cut', async ($, on) => {
+  engineDraws(on)
+  let ui = await $.ui.mount(row(130, { structuredPatch: WIDE }))
+  expect(await has(ui, /…/)).toBe(false)
+  expect(await has(ui, /Endmarker\./)).toBe(true)
+  expect(await has(ui, /at all\..*│/)).toBe(true)
+  expect(await has(ui, /^ +│/)).toBe(true)
+  await ui.unmount()
+
+  ui = await $.ui.mount(row(60, { structuredPatch: WIDE }))
+  expect(await has(ui, /…/)).toBe(false)
+  expect(await has(ui, /Endmarker\./)).toBe(true)
+  await ui.unmount()
 })
 
 test('wide: side by side in place of the engine diff; narrow: our own inline rows', async ($, on) => {

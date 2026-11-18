@@ -10,8 +10,8 @@ Claude Code's terminal shows each edit as one long inline diff. Claude CLI Diff 
 
 - 🪟 **Side by side in the chat.** Old on the left, new on the right, with line numbers on both sides, exactly where Claude Code draws its own diff. No extra panel, no window to manage.
 - 🎯 **Word-level highlights.** Removed lines are red, added lines green, and the *exact words* that changed are marked in a stronger shade, so a one-word fix is visible at a glance.
-- 📦 **Folded previews.** Each diff shows its first 12 lines with a **`[ ▸ Show all N lines ]`** button. Click to expand the full diff in place, **`[ ▾ Collapse ]`** to fold it back. ctrl+o (full transcript) always shows everything.
-- 📐 **Fits any terminal.** Side by side from 120 columns; on narrower terminals the same view becomes one column of `-` / `+` rows.
+- 📦 **Folded previews.** Each diff shows its first 12 screen lines with a **`[ ▸ Show all N lines ]`** button. Click to expand the full diff in place, **`[ ▾ Collapse ]`** to fold it back. ctrl+o (full transcript) always shows everything.
+- 📐 **Fits any terminal.** Side by side from 120 columns; on narrower terminals the same view becomes one column of `-` / `+` rows. Long lines word-wrap to the width of the terminal instead of being cut off.
 - ⚡ **Zero setup.** Install once and it's on in every session. No commands, no settings.
 - 🔒 **Read-only and free.** Built from the patch Claude Code already has for each edit: it reads no files, never changes or blocks an edit, makes no network or model calls, and costs no tokens.
 

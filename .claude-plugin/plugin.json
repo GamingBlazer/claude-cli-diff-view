@@ -1,6 +1,6 @@
 {
   "name": "diff-view",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Side-by-side, word-highlighted diffs for every Edit and Write in the Claude Code terminal, folded to a 12-line preview you click to expand. On by default; no panel, no commands, no tokens.",
   "author": {
     "name": "GamingBlazer",
